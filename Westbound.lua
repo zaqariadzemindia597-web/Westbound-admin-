@@ -1,106 +1,109 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Westbound Mobile Ultimate Hub",
-   LoadingTitle = "Mobile Systems Loading...",
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = "Westbound_Mobile_Data",
-      FileName = "Config"
-   }
+   Name = "Westbound Mobile FIXED",
+   LoadingTitle = "Bypassing Systems...",
+   ConfigurationSaving = {Enabled = false}
 })
 
--- ცვლადები (Global Variables)
-_G.SilentAimEnabled = false
-_G.ESPEnabled = false
-_G.FOV = 150
+_G.SilentAim = false
+_G.ESP = false
+_G.FOV = 200
+
 local Player = game.Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
 
-local MainTab = Window:CreateTab("Main Hacks", 4483362458)
+local MainTab = Window:CreateTab("Main", 4483362458)
 
--- 1. Silent Aim & FOV სექცია
-MainTab:CreateSection("Combat (Mobile Optimized)")
-
+-- 1. SILENT AIM (ახალი მეთოდი)
 MainTab:CreateToggle({
-   Name = "Silent Aim (Direct Hit)",
+   Name = "Silent Aim",
    CurrentValue = false,
-   Flag = "SAim", 
-   Callback = function(Value)
-      _G.SilentAimEnabled = Value
-   end,
+   Callback = function(Value) _G.SilentAim = Value end,
 })
 
-MainTab:CreateSlider({
-   Name = "Aim Radius (FOV)",
-   Range = {50, 800},
-   Increment = 10,
-   CurrentValue = 150,
-   Flag = "FOVSize",
-   Callback = function(Value)
-      _G.FOV = Value
-   end,
-})
-
--- 2. Visuals (ESP) სექცია
-MainTab:CreateSection("Visuals")
-
+-- 2. ESP
 MainTab:CreateToggle({
    Name = "Player ESP",
    CurrentValue = false,
-   Flag = "ESP",
-   Callback = function(Value)
-      _G.ESPEnabled = Value
-      if not Value then
-          for _, p in pairs(game.Players:GetPlayers()) do
-              if p.Character and p.Character:FindFirstChild("Highlight") then
-                  p.Character.Highlight:Destroy()
-              end
-          end
-      end
-   end,
+   Callback = function(Value) _G.ESP = Value end,
 })
 
--- 3. Gun Mod სექცია (გამოწორებული და გაძლიერებული)
-MainTab:CreateSection("Weapon Modifications")
-
+-- 3. GUN MOD (Force Update)
 MainTab:CreateButton({
-   Name = "Ultimate Gun Buff (No Recoil + Fast Reload)",
+   Name = "Fix Gun (No Recoil/Fast Reload)",
    Callback = function()
-       local function PatchGun(v)
-           if v:IsA("Tool") then
-               local settingsModule = v:FindFirstChild("GunSettings") or v:FindFirstChildOfClass("ModuleScript")
-               if settingsModule then
-                   local s = require(settingsModule)
-                   -- უკუცემა და გაფანტვა
-                   s.Recoil = 0
-                   s.RecoilControl = 0
-                   s.Spread = 0
-                   s.MaxSpread = 0
-                   s.MinSpread = 0
-                   -- გადატენვა და სროლის სისწრაფე
-                   s.ReloadTime = 0.05
-                   s.FireRate = 0.05
-                   if s.ReloadSpeed then s.ReloadSpeed = 10 end
-                   if s.AimRecoilReduction then s.AimRecoilReduction = 1 end
-                   
-                   Rayfield:Notify({Title = "Success", Content = v.Name .. " Modified!", Duration = 2})
+       local function Patch(tool)
+           if tool:IsA("Tool") then
+               -- ვეძებთ პარამეტრებს პირდაპირ იარაღის სკრიპტებში
+               for _, v in pairs(tool:GetDescendants()) do
+                   if v:IsA("NumberValue") or v:IsA("IntValue") then
+                       if v.Name:find("Recoil") or v.Name:find("Spread") then
+                           v.Value = 0
+                       elseif v.Name:find("Reload") then
+                           v.Value = 0.1
+                       end
+                   end
                end
            end
        end
-
-       -- ვამოწმებთ ხელში რა გვიჭირავს
-       local currentTool = Player.Character:FindFirstChildOfClass("Tool")
-       if currentTool then
-           PatchGun(currentTool)
-       else
-           -- ვამოწმებთ ინვენტარს
-           for _, v in pairs(Player.Backpack:GetChildren()) do
-               PatchGun(v)
-           end
-           Rayfield:Notify({Title = "Info", Content = "Backpack Weapons Patched!", Duration = 2})
+       
+       if Player.Character:FindFirstChildOfClass("Tool") then
+           Patch(Player.Character:FindFirstChildOfClass("Tool"))
        end
+       for _, tool in pairs(Player.Backpack:GetChildren()) do
+           Patch(tool)
+       end
+       Rayfield:Notify({Title = "Applied", Content = "Gun values forced to 0", Duration = 2})
    end,
 })
 
--- მობილურისთვის ოპტიმიზებული
+-- სამიზნის პოვნის ლოგიკა
+local function GetClosest()
+    local target = nil
+    local dist = _G.FOV
+    for _, v in pairs(game.Players:GetPlayers()) do
+        if v ~= Player and v.Character and v.Character:FindFirstChild("Head") then
+            local pos, vis = Camera:WorldToViewportPoint(v.Character.Head.Position)
+            if vis then
+                local m = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+                if m < dist then
+                    target = v
+                    dist = m
+                end
+            end
+        end
+    end
+    return target
+end
+
+-- მთავარი ციკლი (Loop)
+RunService.RenderStepped:Connect(function()
+    -- Silent Aim (ეკრანის გატოკების გარეშე დამიზნება სროლისას)
+    if _G.SilentAim then
+        local t = GetClosest()
+        if t and Player.Character:FindFirstChildOfClass("Tool") then
+            -- ეს ცვლის მაუსის სამიზნეს პირდაპირ სერვერისთვის
+            local tool = Player.Character:FindFirstChildOfClass("Tool")
+            if tool:FindFirstChild("MousePos") then
+                tool.MousePos.Value = t.Character.Head.Position
+            end
+        end
+    end
+
+    -- ESP
+    if _G.ESP then
+        for _, p in pairs(game.Players:GetPlayers()) do
+            if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                if not p.Character:FindFirstChild("Highlight") then
+                    Instance.new("Highlight", p.Character)
+                end
+            else
+                if p.Character and p.Character:FindFirstChild("Highlight") then
+                    p.Character.Highlight:Destroy()
+                end
+            end
+        end
+    end
+end)
