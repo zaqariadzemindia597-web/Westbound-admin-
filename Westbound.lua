@@ -1,122 +1,96 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-   Name = "Westbound Mobile Pro V4",
-   LoadingTitle = "Bypassing Systems...",
-   ConfigurationSaving = {Enabled = false}
-})
-
--- ცვლადები
-_G.SilentAim = false
-_G.ESP = false
-_G.FOV_Radius = 150
 local Player = game.Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
 
--- FOV წრის ვიზუალი (მუშაობს თუ ექსეკუტორს აქვს Drawing ლიბი)
-local FOVCircle = nil
-if Drawing then
-    FOVCircle = Drawing.new("Circle")
-    FOVCircle.Visible = false
-    FOVCircle.Color = Color3.fromRGB(255, 255, 255)
-    FOVCircle.Thickness = 1
-    FOVCircle.Radius = _G.FOV_Radius
-    FOVCircle.Filled = false
-end
+-- პარამეტრები
+_G.FullSilentAim = false
+_G.ESP = false
+_G.GunMod = false
+_G.Radius = 1000 -- მანძილი, რა მანძილზეც მუშაობს "ავტო-მოხვედრა"
 
-local MainTab = Window:CreateTab("Combat", 4483362458)
-
--- 1. Silent Aim & FOV
-MainTab:CreateToggle({
-   Name = "Silent Aim (In Circle)",
-   CurrentValue = false,
-   Callback = function(Value) 
-      _G.SilentAim = Value 
-      if FOVCircle then FOVCircle.Visible = Value end
-   end,
+-- შეტყობინება ჩატში
+game.StarterGui:SetCore("ChatMakeSystemMessage", {
+    Text = "[LUCIFER ADMIN]: Commands: .aimbot, .esp, .gunmode";
+    Color = Color3.fromRGB(255, 0, 0);
+    Font = Enum.Font.SourceSansBold;
 })
 
-MainTab:CreateSlider({
-   Name = "FOV Radius",
-   Range = {50, 500},
-   Increment = 10,
-   CurrentValue = 150,
-   Callback = function(Value) 
-      _G.FOV_Radius = Value 
-      if FOVCircle then FOVCircle.Radius = Value end
-   end,
-})
-
--- 2. Gun Mod (No Recoil & Fast Reload)
-MainTab:CreateButton({
-   Name = "Buff All Weapons (Recoil/Reload)",
-   Callback = function()
-       local function Patch(v)
-           if v:IsA("Tool") then
-               local s = v:FindFirstChild("GunSettings") or v:FindFirstChildOfClass("ModuleScript")
-               if s then
-                   local m = require(s)
-                   m.Recoil = 0
-                   m.Spread = 0
-                   m.ReloadTime = 0.05
-                   if m.ReloadSpeed then m.ReloadSpeed = 10 end
-                   Rayfield:Notify({Title = "Success", Content = v.Name .. " Patched!", Duration = 2})
-               end
-           end
-       end
-       if Player.Character:FindFirstChildOfClass("Tool") then Patch(Player.Character:FindFirstChildOfClass("Tool")) end
-       for _, t in pairs(Player.Backpack:GetChildren()) do Patch(t) end
-   end,
-})
-
--- 3. ESP
-MainTab:CreateToggle({
-   Name = "Player ESP",
-   CurrentValue = false,
-   Callback = function(Value) _G.ESP = Value end,
-})
-
--- ფუნქცია უახლოესი მტრის საპოვნელად
-local function GetClosest()
+-- ფუნქცია უახლოესი მოთამაშის საპოვნელად (კამერის მიუხედავად)
+local function GetClosestToPlayer()
     local target = nil
-    local dist = _G.FOV_Radius
-    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+    local shortestDistance = _G.Radius
 
     for _, v in pairs(game.Players:GetPlayers()) do
         if v ~= Player and v.Character and v.Character:FindFirstChild("Head") then
-            local pos, vis = Camera:WorldToViewportPoint(v.Character.Head.Position)
-            if vis then
-                local m = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                if m < dist then
-                    target = v
-                    dist = m
-                end
+            local distance = (Player.Character.HumanoidRootPart.Position - v.Character.Head.Position).Magnitude
+            if distance < shortestDistance then
+                target = v
+                shortestDistance = distance
             end
         end
     end
     return target
 end
 
--- მთავარი ციკლი
-RunService.RenderStepped:Connect(function()
-    if FOVCircle and FOVCircle.Visible then
-        FOVCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+-- ჩატის ბრძანებები
+Player.Chatted:Connect(function(msg)
+    local cmd = msg:lower()
+    if cmd == ".aimbot" then
+        _G.FullSilentAim = not _G.FullSilentAim
+        print("Aimbot status: " .. tostring(_G.FullSilentAim))
+    elseif cmd == ".esp" then
+        _G.ESP = not _G.ESP
+    elseif cmd == ".gunmode" or cmd == ".gun mode" then
+        _G.GunMod = true
+        local function Patch(v)
+            if v:IsA("Tool") then
+                local s = v:FindFirstChild("GunSettings") or v:FindFirstChildOfClass("ModuleScript")
+                if s then
+                    local m = require(s)
+                    m.Recoil = 0
+                    m.Spread = 0
+                    m.ReloadTime = 0
+                    m.BulletSpeed = 10000 -- ტყვია მომენტალურად ხვდება
+                end
+            end
+        end
+        for _, t in pairs(Player.Backpack:GetChildren()) do Patch(t) end
+        if Player.Character:FindFirstChildOfClass("Tool") then Patch(Player.Character:FindFirstChildOfClass("Tool")) end
     end
+end)
 
-    if _G.SilentAim then
-        local t = GetClosest()
-        local tool = Player.Character:FindFirstChildOfClass("Tool")
-        if t and tool and tool:FindFirstChild("MousePos") then
-            tool.MousePos.Value = t.Character.Head.Position
+-- მთავარი "ჯადოსნური" ფუნქცია (Hooking)
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    -- თუ ჩართულია FullSilentAim, საერთოდ არ ვაქცევთ ყურადღებას საით ისვრი
+    if _G.FullSilentAim and not checkcaller() and (method == "FindPartOnRayWithIgnoreList" or method == "Raycast") then
+        local t = GetClosestToPlayer()
+        if t and t.Character and t.Character:FindFirstChild("Head") then
+            local head = t.Character.Head
+            
+            -- აქ ხდება გადაწერა: სადაც არ უნდა ისროლო, სერვერს ვეუბნებით რომ მტრის თავს ვესროლეთ
+            if method == "FindPartOnRayWithIgnoreList" then
+                args[1] = Ray.new(Camera.CFrame.Position, (head.Position - Camera.CFrame.Position).Unit * 1000)
+            elseif method == "Raycast" then
+                args[2] = (head.Position - args[1]).Unit * 1000
+            end
+            return oldNamecall(self, unpack(args))
         end
     end
+    return oldNamecall(self, ...)
+end)
 
+-- ESP Loop
+RunService.RenderStepped:Connect(function()
     if _G.ESP then
         for _, p in pairs(game.Players:GetPlayers()) do
             if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                 if not p.Character:FindFirstChild("Highlight") then
-                    Instance.new("Highlight", p.Character)
+                    local h = Instance.new("Highlight", p.Character)
+                    h.FillColor = Color3.fromRGB(255, 0, 0)
                 end
             end
         end
