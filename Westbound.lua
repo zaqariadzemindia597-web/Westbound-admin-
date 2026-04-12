@@ -1,26 +1,27 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Westbound Ultimate Hub",
-   LoadingTitle = "Initializing Systems...",
-   LoadingSubtitle = "by Developer",
+   Name = "Westbound Mobile Ultimate Hub",
+   LoadingTitle = "Mobile Systems Loading...",
    ConfigurationSaving = {
       Enabled = true,
-      FolderName = "Westbound_Data",
-      FileName = "MainConfig"
+      FolderName = "Westbound_Mobile_Data",
+      FileName = "Config"
    }
 })
 
--- Global Variables
+-- ცვლადები (Global Variables)
 _G.SilentAimEnabled = false
 _G.ESPEnabled = false
+_G.FOV = 150
 local Player = game.Players.LocalPlayer
-local Mouse = Player:GetMouse()
 local Camera = workspace.CurrentCamera
 
-local MainTab = Window:CreateTab("Main Cheats", 4483362458)
+local MainTab = Window:CreateTab("Main Hacks", 4483362458)
 
--- 1. Silent Aim Toggle
+-- 1. Silent Aim & FOV სექცია
+MainTab:CreateSection("Combat (Mobile Optimized)")
+
 MainTab:CreateToggle({
    Name = "Silent Aim (Direct Hit)",
    CurrentValue = false,
@@ -30,9 +31,22 @@ MainTab:CreateToggle({
    end,
 })
 
--- 2. ESP Toggle
+MainTab:CreateSlider({
+   Name = "Aim Radius (FOV)",
+   Range = {50, 800},
+   Increment = 10,
+   CurrentValue = 150,
+   Flag = "FOVSize",
+   Callback = function(Value)
+      _G.FOV = Value
+   end,
+})
+
+-- 2. Visuals (ESP) სექცია
+MainTab:CreateSection("Visuals")
+
 MainTab:CreateToggle({
-   Name = "Player ESP (Wallhack)",
+   Name = "Player ESP",
    CurrentValue = false,
    Flag = "ESP",
    Callback = function(Value)
@@ -47,73 +61,46 @@ MainTab:CreateToggle({
    end,
 })
 
--- 3. Gun Mod Button
+-- 3. Gun Mod სექცია (გამოწორებული და გაძლიერებული)
+MainTab:CreateSection("Weapon Modifications")
+
 MainTab:CreateButton({
-   Name = "God Gun (No Recoil + Fast Reload)",
+   Name = "Ultimate Gun Buff (No Recoil + Fast Reload)",
    Callback = function()
-       local tool = Player.Character:FindFirstChildOfClass("Tool")
-       if tool and tool:FindFirstChild("GunSettings") then
-           local s = require(tool.GunSettings)
-           s.Recoil = 0
-           s.Spread = 0
-           s.ReloadTime = 0.1
-           if s.ReloadSpeed then s.ReloadSpeed = 5 end
-           Rayfield:Notify({Title = "Success", Content = "Weapon Overpowered!", Duration = 2})
+       local function PatchGun(v)
+           if v:IsA("Tool") then
+               local settingsModule = v:FindFirstChild("GunSettings") or v:FindFirstChildOfClass("ModuleScript")
+               if settingsModule then
+                   local s = require(settingsModule)
+                   -- უკუცემა და გაფანტვა
+                   s.Recoil = 0
+                   s.RecoilControl = 0
+                   s.Spread = 0
+                   s.MaxSpread = 0
+                   s.MinSpread = 0
+                   -- გადატენვა და სროლის სისწრაფე
+                   s.ReloadTime = 0.05
+                   s.FireRate = 0.05
+                   if s.ReloadSpeed then s.ReloadSpeed = 10 end
+                   if s.AimRecoilReduction then s.AimRecoilReduction = 1 end
+                   
+                   Rayfield:Notify({Title = "Success", Content = v.Name .. " Modified!", Duration = 2})
+               end
+           end
+       end
+
+       -- ვამოწმებთ ხელში რა გვიჭირავს
+       local currentTool = Player.Character:FindFirstChildOfClass("Tool")
+       if currentTool then
+           PatchGun(currentTool)
        else
-           Rayfield:Notify({Title = "Error", Content = "Equip a gun first!", Duration = 3})
+           -- ვამოწმებთ ინვენტარს
+           for _, v in pairs(Player.Backpack:GetChildren()) do
+               PatchGun(v)
+           end
+           Rayfield:Notify({Title = "Info", Content = "Backpack Weapons Patched!", Duration = 2})
        end
    end,
 })
 
--- Target Logic
-local function GetClosestToMouse()
-    local target = nil
-    local maxDist = 500 
-    for _, v in pairs(game.Players:GetPlayers()) do
-        if v ~= Player and v.Character and v.Character:FindFirstChild("Head") then
-            local pos, onScreen = Camera:WorldToViewportPoint(v.Character.Head.Position)
-            if onScreen then
-                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
-                if dist < maxDist then
-                    target = v
-                    maxDist = dist
-                end
-            end
-        end
-    end
-    return target
-end
-
--- Hooking for Silent Aim
-local OldNamecall
-OldNamecall = hookmetamethod(game, "__namecall", function(Self, ...)
-    local Args = {...}
-    local Method = getnamecallmethod()
-    if _G.SilentAimEnabled and not checkcaller() then
-        if Method == "FindPartOnRayWithIgnoreList" or Method == "Raycast" then
-            local Target = GetClosestToMouse()
-            if Target and Target.Character and Target.Character:FindFirstChild("Head") then
-                local Direction = (Target.Character.Head.Position - Camera.CFrame.Position).Unit * 1000
-                if Method == "FindPartOnRayWithIgnoreList" then
-                    Args[1] = Ray.new(Camera.CFrame.Position, Direction)
-                end
-                return OldNamecall(Self, unpack(Args))
-            end
-        end
-    end
-    return OldNamecall(Self, ...)
-end)
-
--- ESP Loop
-game:GetService("RunService").RenderStepped:Connect(function()
-    if _G.ESPEnabled then
-        for _, p in pairs(game.Players:GetPlayers()) do
-            if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                if not p.Character:FindFirstChild("Highlight") then
-                    local h = Instance.new("Highlight", p.Character)
-                    h.FillColor = Color3.fromRGB(255, 0, 0)
-                end
-            end
-        end
-    end
-end)
+-- მობილურისთვის ოპტიმიზებული
