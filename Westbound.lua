@@ -1,54 +1,33 @@
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("🌵 Westbound PRO (Mindia)", "DarkTheme")
+-- უხილავი სკრიპტი - მენიუს გარეშე
+print("Mindia's Invisible Script Loaded! Use chat commands.")
 
 -- --- ცვლადები ---
 _G.SilentAim = false
-_G.InfAmmo = false
 _G.ESP_Enabled = false
 
--- --- მენიუს ტაბები ---
-local Main = Window:NewTab("Main")
-local MSec = Main:NewSection("Combat & Farm")
-
-MSec:NewToggle("Silent Aim", "ავტო-გარტყმა", function(state) _G.SilentAim = state end)
-MSec:NewToggle("Inf Ammo", "უსასრულო ტყვიები", function(state)
-    _G.InfAmmo = state
-    spawn(function()
-        while _G.InfAmmo do
-            local am = game:GetService("Players").LocalPlayer:FindFirstChild("Consumables")
-            if am and am:FindFirstChild("PistolAmmo") then
-                game:GetService("ReplicatedStorage").GunScripts.Events.UseAmmo:FireServer(am.PistolAmmo)
-            end
-            task.wait(0.8)
-        end
-    end)
-end)
-
-MSec:NewButton("Rob Safe", "სეიფის გაძარცვა", function()
-    game:GetService("ReplicatedStorage").GeneralEvents.Rob:FireServer("Safe", workspace:FindFirstChild("Safe"))
-end)
-
-local Play = Window:NewTab("Player")
-local PS = Play:NewSection("Settings")
-PS:NewSlider("Speed", "სირბილი", 150, 16, function(s) game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = s end)
-
--- --- CHAT COMMANDS SYSTEM ---
+-- --- ჩატის ბრძანებების სისტემა ---
 game.Players.LocalPlayer.Chatted:Connect(function(msg)
     local args = string.split(msg, " ")
     
-    -- /speed [რიცხვი]
+    -- 1. სიჩქარე: /speed 100
     if args[1] == "/speed" and args[2] then
         game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = tonumber(args[2])
     
-    -- /rob
+    -- 2. ძარცვა: /rob
     elseif args[1] == "/rob" then
         game:GetService("ReplicatedStorage").GeneralEvents.Rob:FireServer("Safe", workspace:FindFirstChild("Safe"))
     
-    -- /aim on/off
+    -- 3. Aimbot: /aim on ან /aim off
     elseif args[1] == "/aim" then
-        _G.SilentAim = (args[2] == "on")
+        if args[2] == "on" then
+            _G.SilentAim = true
+            print("Aimbot ჩაირთო")
+        else
+            _G.SilentAim = false
+            print("Aimbot გაითიშა")
+        end
     
-    -- /reload (სწრაფი გადატენვა)
+    -- 4. სწრაფი გადატენვა: /reload
     elseif args[1] == "/reload" then
         for _, v in pairs(game:GetService("Players").LocalPlayer.Backpack:GetChildren()) do
             if v:IsA("Tool") and v:FindFirstChild("Stats") then
@@ -57,7 +36,7 @@ game.Players.LocalPlayer.Chatted:Connect(function(msg)
             end
         end
 
-    -- /esp on/off
+    -- 5. ESP: /esp on ან /esp off
     elseif args[1] == "/esp" then
         if args[2] == "on" then
             _G.ESP_Enabled = true
@@ -89,13 +68,13 @@ game.Players.LocalPlayer.Chatted:Connect(function(msg)
             end
         end
 
-    -- /bank (ტელეპორტი)
+    -- 6. ტელეპორტი ბანკში: /bank
     elseif args[1] == "/bank" then
         game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(171, 37, -789)
     end
 end)
 
--- --- SILENT AIM LOGIC (Metatable Hook) ---
+-- --- AIMBOT LOGIC (ჩუმად მუშაობს ფონზე) ---
 local mt = getrawmetatable(game)
 local old = mt.__namecall
 setreadonly(mt, false)
