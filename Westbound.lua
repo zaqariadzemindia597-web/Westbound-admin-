@@ -1,108 +1,71 @@
--- LUCIFER & KDOM STYLE WESTBOUND ADMIN
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+-- BloodTheme-ის ნაცვლად გამოვიყენოთ "DarkTheme" და მცირე ზომის ფანჯარა
+local Window = Library.CreateLib("🌵 Westbound Mobile", "DarkTheme")
 
-local Window = Rayfield:CreateWindow({
-   Name = "MY PRIVATE ADMIN | Westbound",
-   LoadingTitle = "Bypassing Security...",
-   ConfigurationSaving = {Enabled = false}
-})
+-- ფუნქციების სექციები უფრო პატარა სათაურებით
+local Combat = Window:NewTab("Combat")
+local CSec = Combat:NewSection("Shooting")
 
--- ცვლადები (Variables)
 _G.SilentAim = false
-_G.GunMod = false
-_G.FOV = 150
-local Player = game.Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+CSec:NewToggle("Silent Aim", "ავტო-მიზანი", function(state)
+    _G.SilentAim = state
+end)
 
--- 🎯 COMBAT TAB
-local CombatTab = Window:CreateTab("Combat", 4483362458)
-
-CombatTab:CreateToggle({
-   Name = "Silent Aim (Target Nearest)",
-   CurrentValue = false,
-   Callback = function(Value) _G.SilentAim = Value end,
-})
-
-CombatTab:CreateSlider({
-   Name = "Aim Radius",
-   Range = {50, 800},
-   Increment = 10,
-   CurrentValue = 150,
-   Callback = function(Value) _G.FOV = Value end,
-})
-
-CombatTab:CreateButton({
-   Name = "Enable Gun Mod (No Recoil/Fast)",
-   Callback = function()
-       _G.GunMod = true
-       Rayfield:Notify({Title = "Admin", Content = "Gun Mod Activated!", Duration = 2})
-   end,
-})
-
--- 🏃 MOVEMENT TAB
-local PlayerTab = Window:CreateTab("Player", 4483362458)
-
-PlayerTab:CreateSlider({
-   Name = "WalkSpeed",
-   Range = {16, 200},
-   Increment = 1,
-   CurrentValue = 16,
-   Callback = function(Value) Player.Character.Humanoid.WalkSpeed = Value end,
-})
-
--- ⚙️ CORE LOGIC (ეს ნაწილი ამუშავებს ყველაფერს)
-
--- ფუნქცია უახლოესი მტრის საპოვნელად
-local function GetClosest()
-    local target = nil
-    local dist = _G.FOV
-    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-
-    for _, v in pairs(game.Players:GetPlayers()) do
-        if v ~= Player and v.Character and v.Character:FindFirstChild("Head") then
-            local pos, vis = Camera:WorldToViewportPoint(v.Character.Head.Position)
-            if vis then
-                local m = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                if m < dist then
-                    target = v
-                    dist = m
-                end
+_G.InfAmmo = false
+CSec:NewToggle("Inf Ammo", "ტყვიები", function(state)
+    _G.InfAmmo = state
+    spawn(function()
+        while _G.InfAmmo do
+            local am = game:GetService("Players").LocalPlayer:FindFirstChild("Consumables")
+            if am and am:FindFirstChild("PistolAmmo") then
+                game:GetService("ReplicatedStorage").GunScripts.Events.UseAmmo:FireServer(am.PistolAmmo)
             end
+            task.wait(0.8) -- ოდნავ მეტი პაუზა ტელეფონისთვის
+        end
+    end)
+end)
+
+local Farm = Window:NewTab("Farm")
+local FSec = Farm:NewSection("Robbery")
+
+FSec:NewButton("Rob Safe", "სეიფის გაძარცვა", function()
+    game:GetService("ReplicatedStorage").GeneralEvents.Rob:FireServer("Safe", workspace:FindFirstChild("Safe"))
+end)
+
+local Play = Window:NewTab("Player")
+local PS = Play:NewSection("Move")
+
+PS:NewSlider("Speed", "სირბილი", 100, 16, function(s)
+    game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = s
+end)
+
+-- --- SILENT AIM LOGIC (იგივე რჩება) ---
+local function getCl()
+    local cp, sd = nil, math.huge
+    for _, v in pairs(game.Players:GetPlayers()) do
+        if v ~= game.Players.LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character.Humanoid.Health > 0 then
+            local dist = (game.Players.LocalPlayer.Character.Head.Position - v.Character.Head.Position).magnitude
+            if dist < sd then cp, sd = v, dist end
         end
     end
-    return target
+    return cp
 end
 
--- იარაღის აჩქარება და მოდიფიკაცია
-game:GetService("RunService").Heartbeat:Connect(function()
-    if _G.GunMod then
-        local tool = Player.Character:FindFirstChildOfClass("Tool")
-        if tool and tool:FindFirstChild("GunSettings") then
-            local s = require(tool.GunSettings)
-            s.Recoil = 0
-            s.Spread = 0
-            s.ReloadTime = 0.01
-            s.BulletSpeed = 10000 -- ტყვია მომენტალურად ხვდება
-        end
-    end
-end)
-
--- Silent Aim (Hooking Method - არ ბლოკავს კამერას)
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
+local mt = getrawmetatable(game)
+local old = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(self, ...)
     local args = {...}
-
-    if _G.SilentAim and not checkcaller() and (method == "FindPartOnRayWithIgnoreList" or method == "Raycast") then
-        local t = GetClosest()
+    if _G.SilentAim and getnamecallmethod() == "FireServer" and self.Name == "GunShot" then
+        local t = getCl()
         if t then
-            if method == "FindPartOnRayWithIgnoreList" then
-                args[1] = Ray.new(Camera.CFrame.Position, (t.Character.Head.Position - Camera.CFrame.Position).Unit * 1000)
-            elseif method == "Raycast" then
-                args[2] = (t.Character.Head.Position - args[1]).Unit * 1000
-            end
-            return oldNamecall(self, unpack(args))
+            args[1][1].HitPart = t.Character.Head
+            args[1][1].HitHum = t.Character.Humanoid
+            args[1][1].HitPosition = t.Character.Head.Position
+            args[1][1].EndPoint = t.Character.Head.Position
+            args[1][1].RootPosition = t.Character.HumanoidRootPart.Position
         end
     end
-    return oldNamecall(self, ...)
+    return old(self, unpack(args))
 end)
+setreadonly(mt, true)
